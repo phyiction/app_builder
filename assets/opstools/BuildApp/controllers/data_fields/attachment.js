@@ -10,22 +10,35 @@ steal(function () {
 		icon: 'file',
 		menuName: 'Attachment',
 		includeHeader: true,
-		description: ''
+		description: 'Attach a file to this object'
 	};
 
 	// Edit definition
 	attachmentDataField.editDefinition = {
 		id: componentIds.editView,
-		rows: [
-			{ view: "label", label: "Under construction..." }
-		]
+		rows:[
+		{
+		    view:"uploader",
+		    id: "uploader_1",
+		    value:"Upload file",
+		    link:"mylist",
+		    upload:"php/upload.php",
+		    datatype:"json"
+		}, 
+		{
+		    view:"list",  
+		    id:"mylist", 
+		    type:"uploader",
+		    autoheight:true, 
+		    borderless:true 
+		}
+    		]
 	};
-
 	// Populate settings (when Edit field)
 	attachmentDataField.populateSettings = function (application, data) {
 		if (!data) return;
 
-		// TODO:
+		
 	};
 
 	// For save field
@@ -34,8 +47,24 @@ steal(function () {
 		// fieldName = base.getFieldName(self.componentIds.attachmentView);
 		// fieldLabel = base.getFieldLabel(self.componentIds.attachmentView);
 		// fieldSettings.icon = self.componentIds.attachmentIcon;
+		return {
+			fieldName: attachmentDataField.name,
+			type: attachmentDataField.type,
+			setting: {
+				icon: attachmentDataField.icon,
 
-		return null;
+				editor: 'attachmentDataField',
+				template:'<div class="ab-attachment-data-field"></div>',
+
+				filter_type: 'text', // DataTableFilterPopup - filter type
+/*
+				useWidth	: $$(componentIds.useWidth).getValue(),	
+				imageWidth	: $$(componentIds.imageWidth).getValue(),		
+				useHeight	: $$(componentIds.useHeight).getValue(),
+				imageHeight	: $$(componentIds.imageHeight).getValue()
+*/
+			}
+		};
 	};
 
 	// Reset state
@@ -43,6 +72,13 @@ steal(function () {
 		// TODO:
 	};
 
+	attachmentDataField.customDisplay = function (application, object, fieldData, rowId, data, itemNode, options) {
+
+		var $container = $(itemNode).find('.ab-attachment-data-field');	
+		$container.html(JSON.stringify(data));
+
+		return true;
+	};
 	return attachmentDataField;
 
 });
