@@ -32,13 +32,24 @@ steal(
 								labelFormat = this.labelFormat;
 							} else { // Default label format
 								var textCols = this.columns.filter(function (col) { return col.type === 'string' || col.type === 'text' }),
-									defaultCol = textCols.length > 0 ? textCols[0] : this.columns[0];
+									defaultCol;
+
+								if (textCols.length < 1) {
+									defaultCol = this.columns.filter(function (col) { return Object.keys(data).indexOf(col.name) > -1; })[0];
+								}
+								else {
+									defaultCol = textCols[0];
+								}
 
 								labelFormat = '{' + defaultCol.name + '}';
 							}
 
 							for (var c in data) {
-								labelFormat = labelFormat.replace(new RegExp('{' + c + '}', 'g'), data[c]);
+								var label = data[c];
+
+								if (typeof label === 'object') label = '';
+
+								labelFormat = labelFormat.replace(new RegExp('{' + c + '}', 'g'), label);
 							}
 
 							return labelFormat;
@@ -50,6 +61,25 @@ steal(
 
 						getColumn: function (colId) {
 							return AD.Model.get('opstools.BuildApp.ABColumn').findOne({ object: this.id, id: colId });
+						},
+
+						createColumn: function (col) {
+							var self = this,
+								q = $.Deferred();
+
+							col.object = self.id;
+
+							AD.Model.get('opstools.BuildApp.ABColumn').create(col)
+								.fail(q.reject)
+								.then(function (result) {
+									if (result.translate) result.translate();
+
+									self.columns.push(result);
+
+									q.resolve(result);
+								});
+
+							return q;
 						},
 
 						sortColumns: function (cols) {

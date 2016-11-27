@@ -353,7 +353,8 @@ steal(
 							});
 
 							$$(self.viewId).define('select', true);
-							$$(self.viewId).select(id);
+							if (dataCollection)
+								dataCollection.setCursor(id);
 						}
 						else if (id.column === 'edit_form') {
 							$(self).trigger('changePage', {
@@ -361,7 +362,8 @@ steal(
 							});
 
 							$$(self.viewId).define('select', true);
-							$$(self.viewId).select(id);
+							if (dataCollection)
+								dataCollection.setCursor(id);
 						}
 					});
 
@@ -369,17 +371,19 @@ steal(
 						$(self).trigger('renderComplete', {});
 					});
 
-					$$(self.viewId).attachEvent('onAfterSelect', function (data, perserve) {
-						dataCollection.setCursor(data.id);
-					});
-
 					if (dataCollection) {
+						$$(self.viewId).attachEvent("onAfterSelect", function (data, preserve) {
+							var currModel = dataCollection.AD.currModel();
+							if (!currModel || currModel.id != data.id)
+								dataCollection.setCursor(data.id);
+						});
+
 						dataCollection.attachEvent("onAfterCursorChange", function (id) {
 							var selectedItem = $$(self.viewId).getSelectedId(false);
 
 							if (!id && $$(self.viewId).unselectAll)
 								$$(self.viewId).unselectAll();
-							else if (selectedItem && selectedItem.id != id && $$(self.viewId).select)
+							else if ((!selectedItem || selectedItem.id != id) && $$(self.viewId).select)
 								$$(self.viewId).select(id);
 						});
 
@@ -679,7 +683,8 @@ steal(
 		gridComponent.getInfo = function () {
 			return {
 				name: 'grid',
-				icon: 'fa-table'
+				icon: 'fa-table',
+				propertyView: componentIds.propertyView
 			};
 		};
 
@@ -688,7 +693,8 @@ steal(
 				view: "dynamicdatatable",
 				autoheight: true,
 				fixedRowHeight: false,
-				datatype: "json"
+				datatype: "json",
+				resizeColumn: true
 			};
 		};
 
@@ -934,10 +940,6 @@ steal(
 					}
 				}
 			};
-		};
-
-		gridComponent.editStop = function () {
-			$$(componentIds.propertyView).editStop();
 		};
 
 		return gridComponent;

@@ -2,20 +2,22 @@ steal(
 	// List your Controller's dependencies here:
 	'opstools/BuildApp/controllers/data_fields/dataFieldsManager.js',
 	'opstools/BuildApp/controllers/utils/DataCollectionHelper.js',
-
+	'opstools/BuildApp/controllers/utils/ColumnizerHelper.js',
 	'opstools/BuildApp/controllers/webix_custom_components/ConnectedDataPopup.js',
-	function (dataFieldsManager, dataCollectionHelper) {
+	function (dataFieldsManager, dataCollectionHelper, columnizerHelper) {
 		var componentIds = {
 			editView: 'ab-form-edit-view',
 			editForm: 'ab-form-edit-mode',
 
 			title: 'ab-form-title',
 			description: 'ab-form-description',
+			columns: '#viewId#-columns',
 
 			propertyView: 'ab-form-property-view',
 			editTitle: 'ab-form-edit-title',
 			editDescription: 'ab-form-edit-description',
 			selectObject: 'ab-form-select-object',
+			selectColCount: 'ab-form-select-column-count',
 			isSaveVisible: 'ab-form-save-visible',
 			isCancelVisible: 'ab-form-cancel-visible',
 
@@ -43,7 +45,8 @@ steal(
 
 				$$(self.viewId).showProgress({ type: "icon" });
 
-				if (modelData === null) { // Create
+				// Create
+				if (modelData === null) {
 					modelData = new dataCollection.AD.getModelObject()();
 					isAdd = true;
 				}
@@ -103,7 +106,7 @@ steal(
 					});
 
 				return q;
-			};
+			}
 
 			function showCustomFields(object, columns, rowId, rowData) {
 				var self = this;
@@ -120,8 +123,8 @@ steal(
 			}
 
 			function getChildView(columnName) {
-				var childView = $$(this.viewId).getChildViews().find(function (view) {
-					return view.config && view.config.name == columnName
+				var childView = columnizerHelper.getColumns($$(componentIds.columns.replace('#viewId#', this.viewId))).find(function (view) {
+					return view.config && view.config.name == columnName;
 				});
 
 				return childView;
@@ -129,6 +132,9 @@ steal(
 
 			function setElementHeights(columns, currModel) {
 				var self = this;
+
+				if (!columns || columns.length < 1) return;
+
 
 				columns.forEach(function (col) {
 					var childView = getChildView.call(self, col.name);
@@ -252,13 +258,34 @@ steal(
 
 							var element = {
 								name: col.name, // Field name
-								labelWidth: 100,
-								minWidth: 500
+								labelWidth: 100
 							};
 							element.label = col.label;
 
 							if (col.type == 'boolean') {
 								element.view = 'checkbox';
+							}
+							else if (col.setting.editor === 'popup') {
+								element.view = 'textarea';
+							}
+							else if (col.setting.editor === 'number') {
+								// element.view = 'counter';
+								// element.pattern = { mask: "##############", allow: /[0-9]/g }; // Available in webix PRO edition
+								element.view = 'text';
+								element.validate = webix.rules.isNumber;
+								element.validateEvent = 'key';
+							}
+							else if (col.setting.editor === 'date') {
+								element.view = 'datepicker';
+								element.timepicker = false;
+							}
+							else if (col.setting.editor === 'datetime') {
+								element.view = 'datepicker';
+								element.timepicker = true;
+							}
+							else if (col.setting.editor === 'richselect') {
+								element.view = 'richselect';
+								element.options = listOptions[col.id];
 							}
 							else if (col.setting.template) {
 								var template = "<label style='width: #width#px; display: inline-block; float: left; line-height: 32px;'>#label#</label>#template#"
@@ -282,24 +309,6 @@ steal(
 										dataFieldsManager.customEdit(application, data.object, col, rowId, current_view.$view);
 									}
 								};
-							}
-							else if (col.setting.editor === 'popup') {
-								element.view = 'textarea';
-							}
-							else if (col.setting.editor === 'number') {
-								element.view = 'counter';
-							}
-							else if (col.setting.editor === 'date') {
-								element.view = 'datepicker';
-								element.timepicker = false;
-							}
-							else if (col.setting.editor === 'datetime') {
-								element.view = 'datepicker';
-								element.timepicker = true;
-							}
-							else if (col.setting.editor === 'richselect') {
-								element.view = 'richselect';
-								element.options = listOptions[col.id];
 							}
 							else {
 								element.view = col.setting.editor;
@@ -333,7 +342,10 @@ steal(
 					},
 					function (next) {
 						// Redraw
-						webix.ui(elementViews, $$(self.viewId));
+						var columnCount = parseInt(setting.colCount, 10) || 1;
+						var columnView = columnizerHelper.columnize(elementViews, columnCount);
+						columnView.id = componentIds.columns.replace('#viewId#', self.viewId);
+						webix.ui([columnView], $$(self.viewId));
 
 						// Title
 						if (editable) {
@@ -474,8 +486,10 @@ steal(
 						return;
 					}
 
+					$$(self.viewId).adjust();
 					$$(self.viewId).hideProgress();
 
+console.error('FIRE: ', self.viewId);
 					$(self).trigger('renderComplete', {});
 
 					data.isRendered = true;
@@ -500,6 +514,7 @@ steal(
 					title: propertyValues[componentIds.editTitle],
 					description: propertyValues[componentIds.editDescription] || '',
 					object: propertyValues[componentIds.selectObject] || '', // ABObject.id
+					colCount: propertyValues[componentIds.selectColCount] || '',
 					visibleFieldIds: visibleFieldIds, // [ABColumn.id]
 					saveVisible: propertyValues[componentIds.isSaveVisible],
 					cancelVisible: propertyValues[componentIds.isCancelVisible],
@@ -557,11 +572,22 @@ steal(
 							};
 						});
 
+						//
+						var colCountOptions = [1, 2, 3];
+						var colCountSource = $$(componentIds.propertyView).getItem(componentIds.selectColCount);
+						colCountSource.options = $.map(colCountOptions, function (o) {
+							return {
+								id: o,
+								value: o
+							};
+						})
+
 						// Set property values
 						var propValues = {};
 						propValues[componentIds.editTitle] = setting.title || '';
 						propValues[componentIds.editDescription] = setting.description || '';
 						propValues[componentIds.selectObject] = setting.object;
+						propValues[componentIds.selectColCount] = setting.colCount;
 						propValues[componentIds.isSaveVisible] = setting.saveVisible || 'hide';
 						propValues[componentIds.isCancelVisible] = setting.cancelVisible || 'hide';
 						propValues[componentIds.clearOnLoad] = setting.clearOnLoad || 'no';
@@ -604,7 +630,10 @@ steal(
 								// Get default value of linked data
 								var defaultVal = {
 									id: linkCurrModel.id,
-									text: linkCurrModel._dataLabel
+									text: linkCurrModel._dataLabel,
+									objectId: data.setting.object, // ABObject.id
+									columnName: col.name,
+									rowId: linkCurrModel.id
 								};
 
 								dataFieldsManager.setValue(col, childView.$view, defaultVal);
@@ -614,13 +643,18 @@ steal(
 
 			};
 
+			this.resize = function(width, height) {
+				$$(this.viewId).adjust();
+			};
+
 		}
 
 		// Static functions
 		formComponent.getInfo = function () {
 			return {
 				name: 'form',
-				icon: 'fa-list-alt'
+				icon: 'fa-list-alt',
+				propertyView: componentIds.propertyView
 			};
 		};
 
@@ -673,6 +707,20 @@ steal(
 						name: 'object',
 						type: 'richselect',
 						label: 'Object',
+						template: function (data, dataValue) {
+							var selectedData = $.grep(data.options, function (opt) { return opt.id == dataValue; });
+							if (selectedData && selectedData.length > 0)
+								return selectedData[0].value;
+							else
+								return "[Select]";
+						}
+					},
+					{ label: "Misc", type: "label" },
+					{
+						id: componentIds.selectColCount,
+						name: 'colCount',
+						type: 'richselect',
+						label: 'Column Count',
 						template: function (data, dataValue) {
 							var selectedData = $.grep(data.options, function (opt) { return opt.id == dataValue; });
 							if (selectedData && selectedData.length > 0)
@@ -741,6 +789,7 @@ steal(
 									$$(componentIds.description).setValue(propertyValues[componentIds.editDescription]);
 								break;
 							case componentIds.selectObject:
+							case componentIds.selectColCount:
 							case componentIds.isSaveVisible:
 							case componentIds.isCancelVisible:
 								var setting = componentManager.editInstance.getSettings();
@@ -750,10 +799,6 @@ steal(
 					}
 				}
 			};
-		};
-
-		formComponent.editStop = function () {
-			$$(componentIds.propertyView).editStop();
 		};
 
 		formComponent.resize = function (height) {

@@ -24,7 +24,7 @@ steal(
 			name: 'connectObject',
 			type: 'connectObject',
 			icon: 'external-link',
-			menuName: 'Connect to another record',
+			menuName: AD.lang.label.getLabel('ab.dataField.connectObject.menuName') || 'Connect to another record',
 			includeHeader: true,
 			description: '',
 			formView: 'template' //
@@ -38,23 +38,25 @@ steal(
 				});
 			}
 
-			// Connect data popup
-			$$(componentIds.connectDataPopup).onSelect(function (selectedItems) {
-				selectivityHelper.setData(selectivityNode, selectedItems);
-			});
+			// $$(componentIds.connectDataPopup).onSelect(function (selectedItems) {
+			// 	selectivityHelper.setData(selectivityNode, selectedItems);
+			// });
 
 			$$(componentIds.connectDataPopup).onClose(function (selectedItems) {
 				selectivityHelper.setData(selectivityNode, selectedItems);
 
-				var connectData = getReturnData(object, columnName, rowId, selectedItems);
+				var connectData = getReturnData(object.id, columnName, rowId, selectedItems);
 
-				$(connectObjectField).trigger('update', connectData);
+				// Wait until selectivity populate data completely
+				setTimeout(function () {
+					$(connectObjectField).trigger('update', connectData);
+				}, 600);
 			});
 		}
 
-		function getReturnData(object, columnName, rowId, selectedItems) {
+		function getReturnData(objectId, columnName, rowId, selectedItems) {
 			var connectData = {};
-			connectData.objectId = object.id;
+			connectData.objectId = objectId;
 			connectData.columnName = columnName;
 			connectData.rowId = rowId;
 			connectData.data = $.map(selectedItems, function (item) { return item.id; });
@@ -78,7 +80,7 @@ steal(
 			if (result.event && result.event.removed) {
 				var selectedItems = selectivityHelper.getData(result.itemNode),
 					connectData = getReturnData(
-						result.event.removed.object,
+						result.event.removed.objectId,
 						result.event.removed.columnName,
 						result.event.removed.rowId,
 						selectedItems);
@@ -93,7 +95,7 @@ steal(
 			rows: [
 				{
 					view: "label",
-					label: "Connect to Object"
+					label: AD.lang.label.getLabel('ab.dataField.connectObject.connectToObject') || "Connect to Object"
 				},
 				{
 					view: "list",
@@ -112,7 +114,7 @@ steal(
 				{
 					view: 'button',
 					id: componentIds.objectCreateNew,
-					value: 'Connect to new Object',
+					value: AD.lang.label.getLabel('ab.dataField.connectObject.connectToNewObject') || 'Connect to new Object',
 					click: function () {
 						if (this.getTopParentView().createNewObjectEvent)
 							this.getTopParentView().createNewObjectEvent();
@@ -133,8 +135,8 @@ steal(
 							width: 165,
 							inputWidth: 160,
 							options: [
-								{ id: "collection", value: "Has many" },
-								{ id: "model", value: "Belong to" }
+								{ id: "collection", value: AD.lang.label.getLabel('ab.dataField.connectObject.hasMany') || "Has many" },
+								{ id: "model", value: AD.lang.label.getLabel('ab.dataField.connectObject.belongTo') || "Belong to" }
 							]
 						},
 						{
@@ -161,8 +163,8 @@ steal(
 							width: 165,
 							inputWidth: 160,
 							options: [
-								{ id: "collection", value: "Has many" },
-								{ id: "model", value: "Belong to" }
+								{ id: "collection", value: AD.lang.label.getLabel('ab.dataField.connectObject.hasMany') || "Has many" },
+								{ id: "model", value: AD.lang.label.getLabel('ab.dataField.connectObject.belongTo') || "Belong to" }
 							]
 						},
 						{
@@ -190,7 +192,9 @@ steal(
 			$$(componentIds.objectList).data.unsync();
 			$$(componentIds.objectList).data.sync(objectList);
 			$$(componentIds.objectList).refresh();
-			$$(componentIds.objectList).filter(function (obj) { return obj.id != application.currObj.id; });
+
+			// Allow linking to self
+			//$$(componentIds.objectList).filter(function (obj) { return obj.id != application.currObj.id; });
 
 			$$(componentIds.fieldLink).setValue(application.currObj.label);
 			$$(componentIds.fieldLink2).setValue(application.currObj.label);
@@ -219,9 +223,9 @@ steal(
 			var linkObject = $$(componentIds.objectList).getSelectedItem();
 			if (!linkObject) {
 				webix.alert({
-					title: "Object required",
-					text: "Please select object to connect.",
-					ok: "Ok"
+					title: AD.lang.label.getLabel('ab.dataField.connectObject.warning.objRequired') || "Object required",
+					text: AD.lang.label.getLabel('ab.dataField.connectObject.warning.objRequireDescription') || "Please select object to connect.",
+					ok: AD.lang.label.getLabel('ab.common.ok') || "Ok"
 				})
 				return null;
 			}
@@ -249,24 +253,24 @@ steal(
 
 			var selectedItems = [];
 			if (data) {
-				if (data.map) {
-					selectedItems = data.map(function (cVal) {
-						return {
-							id: cVal.id,
-							text: cVal._dataLabel,
-							object: object,
-							columnName: fieldData.name,
-							rowId: rowId
-						};
-					});
-				}
-				else if (data.id) {
+				if (data.id) {
 					selectedItems.push({
 						id: data.id,
 						text: data._dataLabel,
-						object: object,
+						objectId: object.id,
 						columnName: fieldData.name,
 						rowId: rowId
+					});
+				}
+				else if (data.each || data.forEach) {
+					selectedItems = $.map(data.attr ? data.attr() : data, function (item) {
+						return {
+							id: item.id,
+							text: item._dataLabel,
+							objectId: object.id,
+							columnName: fieldData.name,
+							rowId: rowId
+						};
 					});
 				}
 			}
